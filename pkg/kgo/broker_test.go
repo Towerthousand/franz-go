@@ -702,3 +702,22 @@ func TestIssue1505(t *testing.T) {
 		}
 	}
 }
+
+// reqVersion applies the too-old check to any broker that listed a key: a
+// KRaft controller lists ApiVersions and no Produce.
+func TestReqVersionBrokerWithoutProduce(t *testing.T) {
+	t.Parallel()
+	cl, err := NewClient(SeedBrokers("127.0.0.1:1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cl.Close()
+	b := cl.newBroker(1, "127.0.0.1", 1, nil)
+	defer b.stopForever()
+	v := newBrokerVersions(1)
+	v.maxVers[int16(kmsg.ApiVersions)] = 4
+	b.storeVersions(v)
+	if _, err := b.reqVersion(context.Background(), kmsg.NewPtrMetadataRequest()); !errors.Is(err, errBrokerTooOld) {
+		t.Errorf("reqVersion returned %v for a request the broker did not list, want errBrokerTooOld", err)
+	}
+}

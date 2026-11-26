@@ -299,10 +299,11 @@ func (b *broker) reqVersion(ctx context.Context, req kmsg.Request) (int16, error
 		return 0, errUnknownRequestKey
 	}
 
-	// If v.maxVersion(0) is non-negative, then we loaded API
-	// versions. If the version for this request is negative, we
-	// know the broker cannot handle this request.
-	if v.maxVersion(0) >= 0 && v.maxVersion(req.Key()) < 0 {
+	// If the broker listed any key, then we loaded API versions. If
+	// the version for this request is negative, we know the broker
+	// cannot handle this request. We do not test for one key: a KRaft
+	// controller lists no Produce.
+	if len(v.maxVers) > 0 && v.maxVersion(req.Key()) < 0 {
 		return 0, errBrokerTooOld
 	}
 
