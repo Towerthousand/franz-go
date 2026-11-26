@@ -222,6 +222,7 @@ func TestIssueProduceBrokerTooOldFailsRecords(t *testing.T) {
 	cl, _ := newTestClient(
 		DefaultProduceTopic(topic),
 		MaxVersions(kversion.V0_10_2()),
+		DisableIdempotentWrite(), // 0.10 has no InitProducerID, which fails the records before any produce
 	)
 	defer cl.Close()
 

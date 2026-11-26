@@ -1231,8 +1231,13 @@ func (cl *Client) doInitProducerID(ctxFn func() context.Context, lastID int64, l
 	})
 	if err != nil {
 		if errors.Is(err, errUnknownRequestKey) || errors.Is(err, errBrokerTooOld) {
-			cl.cfg.logger.Log(LogLevelInfo, "unable to initialize a producer id because the broker is too old or the client is pinned to an old version, continuing without a producer id")
-			return &producerID{-1, -1, nil}, true
+			// We keep the error, which fails every produce from here
+			// on: we do not produce without a producer ID unless you
+			// ask for it, and a cluster or a seed list that cannot
+			// answer InitProducerID is yours to fix.
+			err = fmt.Errorf("unable to initialize a producer ID: the broker, or a KRaft controller among the seed brokers, has no InitProducerID, or MaxVersions leaves it out; idempotent writes are not turned off automatically (see DisableIdempotentWrite): %w", err)
+			cl.cfg.logger.Log(LogLevelError, "producer id initialization is not possible, failing all produces", "err", err)
+			return &producerID{lastID, lastEpoch, err}, true
 		}
 		if cl.ctx.Err() != nil {
 			cl.cfg.logger.Log(LogLevelInfo, "producer id initialization failure due to dying client", "err", err)

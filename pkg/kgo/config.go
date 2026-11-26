@@ -1229,6 +1229,10 @@ func RequiredAcks(acks Acks) ProducerOpt {
 // IDEMPOTENT_WRITE permission on CLUSTER (pre Kafka 3.0), and not all clients
 // can have that permission.
 //
+// We do not turn idempotent writes off on our own: if a broker has no
+// InitProducerID (Kafka before 0.11), or MaxVersions leaves it out, every
+// produced record fails unless you use this option.
+//
 // If the goal is to allow cancellation of in-flight records while keeping
 // idempotent deduplication, see [AllowIdempotentProduceCancellation] instead.
 //

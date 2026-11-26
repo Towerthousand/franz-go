@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -809,5 +810,30 @@ func TestCanceledRequestKeepsNormalConnection(t *testing.T) {
 	}
 	if after := connects.n.Load(); after != before {
 		t.Fatalf("canceling a request reconnected: %d connections before, %d after", before, after)
+	}
+}
+
+// A client that cannot send InitProducerID fails its records. It does not
+// turn idempotent writes off on its own.
+func TestProduceWithoutInitProducerID(t *testing.T) {
+	t.Parallel()
+	c := newCluster(t, SeedTopics(1, "t"))
+	v := kversion.Stable()
+	v.SetMaxKeyVersion(int16(kmsg.InitProducerID), -1)
+	for _, tc := range []struct {
+		name    string
+		opts    []kgo.Opt
+		wantErr bool
+	}{
+		{"idempotent", nil, true},
+		{"DisableIdempotentWrite", []kgo.Opt{kgo.DisableIdempotentWrite()}, false},
+	} {
+		cl := newPlainClient(t, c, append(tc.opts, kgo.MaxVersions(v), kgo.DefaultProduceTopic("t"))...)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := cl.ProduceSync(ctx, kgo.StringRecord("v")).FirstErr()
+		cancel()
+		if (err != nil) != tc.wantErr || tc.wantErr && !strings.Contains(err.Error(), "DisableIdempotentWrite") {
+			t.Errorf("%s: produce returned %v", tc.name, err)
+		}
 	}
 }
